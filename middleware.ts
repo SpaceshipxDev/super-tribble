@@ -1,0 +1,59 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { AUTH_COOKIE, parseSessionValue } from '@/lib/auth';
+
+const PUBLIC_PATHS: Array<RegExp> = [
+  /^\/login(?:$|\?)/,
+  /^\/api\/auth\/(login|logout|me)(?:$|\/)/,
+  /^\/_next\//,
+  /^\/favicon\.ico$/,
+  /^\/.*\.(?:svg|png|jpg|jpeg|gif|ico|txt|json|js|css|map)$/,
+];
+
+function isPublicPath(pathname: string): boolean {
+  return PUBLIC_PATHS.some((re) => re.test(pathname));
+}
+
+export async function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl;
+  if (isPublicPath(pathname)) {
+    return NextResponse.next();
+  }
+
+  const raw = req.cookies.get(AUTH_COOKIE)?.value;
+  const user = await parseSessionValue(raw);
+
+  // Admin-only routes
+  if (pathname.startsWith('/metrics') || pathname.startsWith('/admin')) {
+    if (user !== 'admin') {
+      const url = new URL('/', req.url);
+      return NextResponse.redirect(url);
+    }
+    // If admin, proceed
+    return NextResponse.next();
+  }
+
+  // Redirect admin away from chat UI to admin dashboard
+  if (pathname === '/' && user === 'admin') {
+    const url = new URL('/admin', req.url);
+    return NextResponse.redirect(url);
+  }
+
+  if (user) return NextResponse.next();
+
+  // API requests: return 401 JSON
+  if (pathname.startsWith('/api/')) {
+    return new NextResponse(JSON.stringify({ error: '未登录' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  // Pages: redirect to login
+  const url = new URL('/login', req.url);
+  url.searchParams.set('next', pathname);
+  return NextResponse.redirect(url);
+}
+
+export const config = {
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+};
