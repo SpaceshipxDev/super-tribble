@@ -31,7 +31,7 @@ type SqliteDB = {
   pragma: (pragma: string) => void;
   exec: (sql: string) => void;
   prepare: (sql: string) => SqlStatement;
-  transaction: (fn: Function) => (...params: unknown[]) => unknown;
+  transaction: (fn: (...args: unknown[]) => unknown) => (...params: unknown[]) => unknown;
 };
 
 let db: SqliteDB | null = null;

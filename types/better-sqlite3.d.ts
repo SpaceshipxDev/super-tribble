@@ -3,18 +3,18 @@ declare module 'better-sqlite3' {
   // For richer typings, install @types/better-sqlite3 in environments with network access.
   namespace Database {
     interface Statement {
-      run: (...params: any[]) => any;
-      get: (...params: any[]) => any;
-      all: (...params: any[]) => any[];
+      run: (...params: unknown[]) => unknown;
+      get: (...params: unknown[]) => unknown;
+      all: (...params: unknown[]) => unknown[];
     }
     interface Transaction {
-      (...params: any[]): any;
+      (...params: unknown[]): unknown;
     }
     interface Database {
       pragma: (pragma: string) => void;
       exec: (sql: string) => void;
       prepare: (sql: string) => Statement;
-      transaction: (fn: Function) => Transaction;
+      transaction: (fn: (...args: unknown[]) => unknown) => Transaction;
     }
   }
   interface DatabaseConstructor {
@@ -24,4 +24,3 @@ declare module 'better-sqlite3' {
   const BetterSqlite3: DatabaseConstructor;
   export = BetterSqlite3;
 }
-

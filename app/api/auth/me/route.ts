@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AUTH_COOKIE, parseSessionValue } from '@/lib/auth';
 
-export const runtime = 'edge';
+export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
@@ -10,4 +10,3 @@ export async function GET(req: NextRequest) {
   if (!user) return NextResponse.json({ user: null }, { status: 401 });
   return NextResponse.json({ user });
 }
-

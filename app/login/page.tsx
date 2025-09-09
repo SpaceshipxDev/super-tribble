@@ -1,17 +1,25 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-zinc-400">加载中…</div>}>
+      <LoginInner />
+    </Suspense>
+  );
+}
+
+function LoginInner() {
   const router = useRouter();
   const params = useSearchParams();
-  const nextPath = params.get('next') || '/';
+  const nextPath = useMemo(() => params.get('next') || '/', [params]);
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [error] = useState<string | null>(null);
+  const [busy] = useState(false);
 
   useEffect(() => {
     // If already logged in, navigate to next
@@ -22,29 +30,6 @@ export default function LoginPage() {
       } catch {}
     })();
   }, [router, nextPath]);
-
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setError(String(data?.error || '登录失败'));
-        return;
-      }
-      router.replace(nextPath);
-    } catch {
-      setError('网络错误');
-    } finally {
-      setBusy(false);
-    }
-  }
 
   return (
     <div className="min-h-screen bg-black md:bg-[#212121] text-zinc-200 flex items-center justify-center p-6">
@@ -57,10 +42,11 @@ export default function LoginPage() {
           <p className="text-xs text-zinc-500 mt-1">极简中文体验 · 使用模型：OpenAI GPT‑5</p>
         </div>
 
-        <form onSubmit={onSubmit} className="space-y-3">
+        <form method="POST" action="/api/auth/login" className="space-y-3">
           <div>
             <label className="block text-xs text-zinc-400 mb-1">用户名</label>
             <input
+              name="username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="test1 / test2 / test3 / admin"
@@ -71,12 +57,14 @@ export default function LoginPage() {
             <label className="block text-xs text-zinc-400 mb-1">密码</label>
             <input
               type="password"
+              name="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="boldJam3"
               className="w-full rounded-lg bg-[#1a1a1a] border border-zinc-800 px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-zinc-600"
             />
           </div>
+          <input type="hidden" name="next" value={nextPath} />
           {error && (
             <div className="text-xs text-red-400 mt-1">{error}</div>
           )}
