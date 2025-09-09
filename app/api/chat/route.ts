@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
       history,
       config: {
         temperature: body.temperature,
-        systemInstruction: body.systemInstruction ?? '你是一名中文助手。所有回答请使用简洁、现代的中文表达，短句直给，避免冗长。',
+        systemInstruction: body.systemInstruction ?? '你是杭州伟益机加工的AI助手。你为公司的内部员工提供建议，问题方案, etc. No bullshiting. Cut striaght to the point. You speak in chinese.  ',
         thinkingConfig: { thinkingBudget: typeof body.thinkingBudget === 'number' ? body.thinkingBudget : 0 },
       },
     });
