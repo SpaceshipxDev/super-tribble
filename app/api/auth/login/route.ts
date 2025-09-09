@@ -5,12 +5,14 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
-  let body: any = {};
+  let username = '';
+  let password = '';
   try {
-    body = await req.json();
+    const raw = (await req.json()) as unknown;
+    const obj = (raw && typeof raw === 'object') ? (raw as Record<string, unknown>) : {};
+    username = typeof obj.username === 'string' ? obj.username.trim() : '';
+    password = typeof obj.password === 'string' ? obj.password : '';
   } catch {}
-  const username = String(body?.username || '').trim();
-  const password = String(body?.password || '');
 
   if (!isAllowedUser(username)) {
     return NextResponse.json({ error: '无效的用户' }, { status: 401 });
@@ -31,4 +33,3 @@ export async function POST(req: NextRequest) {
   });
   return res;
 }
-

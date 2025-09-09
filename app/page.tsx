@@ -10,7 +10,7 @@
 
 'use client';
 
-import { useState, useRef, useEffect, FormEvent, SVGProps } from 'react';
+import { useState, useRef, useEffect, FormEvent, SVGProps, ReactNode, HTMLAttributes } from 'react';
 import type { NextPage } from 'next';
 import {
   Plus, ArrowUp, Menu, X,
@@ -98,10 +98,13 @@ const ChatPage: NextPage = () => {
   async function loadMessages(conversationId: string) {
     try {
       const res = await fetch(`/api/conversations/${conversationId}/messages`, { cache: 'no-store' });
-      const data = await res.json();
-      const uiMsgs: UiMessage[] = (data.messages || []).map((m: any) => ({
-        id: m.id,
-        text: m.content,
+      const data = (await res.json()) as unknown;
+      const arr = (data && typeof data === 'object' && Array.isArray((data as Record<string, unknown>).messages))
+        ? ((data as Record<string, unknown>).messages as Array<Record<string, unknown>>)
+        : [];
+      const uiMsgs: UiMessage[] = arr.map((m) => ({
+        id: typeof m.id === 'string' ? m.id : undefined,
+        text: typeof m.content === 'string' ? m.content : String(m.content ?? ''),
         sender: m.role === 'model' ? 'ai' : 'user',
       }));
       setMessages(uiMsgs);
@@ -128,7 +131,7 @@ const ChatPage: NextPage = () => {
         body: JSON.stringify({ conversationId: activeConvoId, message: content }),
       });
       if (!res.ok) throw new Error(`Chat failed: ${res.status}`);
-      let data: any = await res.json();
+      let data: unknown = await res.json();
       if (typeof data === 'string') {
         try {
           const parsed = JSON.parse(data);
@@ -139,7 +142,8 @@ const ChatPage: NextPage = () => {
         }
       }
 
-      const headerId = (data?.conversationId as string | undefined) || res.headers.get('X-Conversation-Id') || undefined;
+      const dataObj = (data && typeof data === 'object') ? (data as Record<string, unknown>) : {};
+      const headerId = (typeof dataObj.conversationId === 'string' ? dataObj.conversationId : undefined) || res.headers.get('X-Conversation-Id') || undefined;
       if (headerId && headerId !== activeConvoId) setActiveConvoId(headerId);
 
       // Robustly coerce to the model's text even if the server accidentally
@@ -326,18 +330,18 @@ const ChatPage: NextPage = () => {
                           <ReactMarkdown
                             remarkPlugins={[remarkGfm]}
                             components={{
-                              h1: ({node, ...props}) => <h1 className="text-2xl font-semibold mt-4 mb-2" {...props} />,
-                              h2: ({node, ...props}) => <h2 className="text-xl font-semibold mt-4 mb-2" {...props} />,
-                              h3: ({node, ...props}) => <h3 className="text-lg font-semibold mt-3 mb-2" {...props} />,
+                              h1: ({ ...props }) => <h1 className="text-2xl font-semibold mt-4 mb-2" {...props} />,
+                              h2: ({ ...props }) => <h2 className="text-xl font-semibold mt-4 mb-2" {...props} />,
+                              h3: ({ ...props }) => <h3 className="text-lg font-semibold mt-3 mb-2" {...props} />,
                               // Preserve line breaks without breaking list layout
-                              p: ({node, ...props}) => <p className="leading-7 whitespace-pre-wrap break-words mt-2 mb-2 first:mt-0 last:mb-0" {...props} />,
-                              ul: ({node, ...props}) => <ul className="list-disc pl-6 mt-2 mb-2 space-y-1" {...props} />,
-                              ol: ({node, ...props}) => <ol className="list-decimal pl-6 mt-2 mb-2 space-y-1" {...props} />,
-                              li: ({node, ...props}) => <li className="leading-7" {...props} />,
-                              strong: ({node, ...props}) => <strong className="font-semibold" {...props} />,
-                              em: ({node, ...props}) => <em className="italic" {...props} />,
-                              a: ({node, ...props}) => <a className="underline text-blue-400 hover:text-blue-300" target="_blank" rel="noreferrer noopener" {...props} />,
-                              code: ({inline, className, children, ...props}: any) =>
+                              p: ({ ...props }) => <p className="leading-7 whitespace-pre-wrap break-words mt-2 mb-2 first:mt-0 last:mb-0" {...props} />,
+                              ul: ({ ...props }) => <ul className="list-disc pl-6 mt-2 mb-2 space-y-1" {...props} />,
+                              ol: ({ ...props }) => <ol className="list-decimal pl-6 mt-2 mb-2 space-y-1" {...props} />,
+                              li: ({ ...props }) => <li className="leading-7" {...props} />,
+                              strong: ({ ...props }) => <strong className="font-semibold" {...props} />,
+                              em: ({ ...props }) => <em className="italic" {...props} />,
+                              a: ({ ...props }) => <a className="underline text-blue-400 hover:text-blue-300" target="_blank" rel="noreferrer noopener" {...props} />,
+                              code: ({ inline, className, children, ...props }: { inline?: boolean; className?: string; children?: ReactNode } & HTMLAttributes<HTMLElement>) =>
                                 inline ? (
                                   <code className="bg-zinc-800 rounded px-1.5 py-0.5 text-sm" {...props}>{children}</code>
                                 ) : (
@@ -345,8 +349,8 @@ const ChatPage: NextPage = () => {
                                     <code className={className} {...props}>{children}</code>
                                   </pre>
                                 ),
-                              blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-zinc-600 pl-4 my-3 italic text-zinc-300" {...props} />,
-                              hr: ({node, ...props}) => <hr className="my-6 border-zinc-700" {...props} />,
+                              blockquote: ({ ...props }) => <blockquote className="border-l-4 border-zinc-600 pl-4 my-3 italic text-zinc-300" {...props} />,
+                              hr: ({ ...props }) => <hr className="my-6 border-zinc-700" {...props} />,
                             }}
                           >
                             {msg.text}
@@ -415,9 +419,9 @@ const ChatPage: NextPage = () => {
 };
 
 // Heuristic to pull the text field from a possibly malformed response
-function coerceModelText(payload: any): string {
-  if (payload && typeof payload === 'object' && typeof payload.text === 'string') {
-    return payload.text;
+function coerceModelText(payload: unknown): string {
+  if (payload && typeof payload === 'object' && typeof (payload as { text?: unknown }).text === 'string') {
+    return (payload as { text: string }).text;
   }
   if (typeof payload === 'string') {
     // Try direct parse first
@@ -473,7 +477,7 @@ const ChatHistoryItem = ({ text, isActive, onClick, onInfoClick }: { text: strin
       {text}
     </button>
     <button
-      onClick={(e) => { e.stopPropagation(); onInfoClick && onInfoClick(); }}
+      onClick={(e) => { e.stopPropagation(); if (onInfoClick) onInfoClick(); }}
       title="聊天备忘录"
       className="p-1 rounded text-zinc-400 hover:text-white hover:bg-zinc-700 ml-2 flex-shrink-0"
     >
@@ -519,28 +523,28 @@ function MemoPanel({ open, title, content, loading, onClose }: { open: boolean, 
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 components={{
-                  h1: ({ node, ...props }) => (
+                  h1: ({ ...props }) => (
                     <h1 className="text-xl font-semibold mt-3 mb-2" {...props} />
                   ),
-                  h2: ({ node, ...props }) => (
+                  h2: ({ ...props }) => (
                     <h2 className="text-lg font-semibold mt-3 mb-2" {...props} />
                   ),
-                  h3: ({ node, ...props }) => (
+                  h3: ({ ...props }) => (
                     <h3 className="text-base font-semibold mt-2.5 mb-1.5" {...props} />
                   ),
-                  p: ({ node, ...props }) => (
+                  p: ({ ...props }) => (
                     <p className="leading-7 whitespace-pre-wrap break-words mt-2 mb-2 first:mt-0 last:mb-0" {...props} />
                   ),
-                  ul: ({ node, ...props }) => (
+                  ul: ({ ...props }) => (
                     <ul className="list-disc pl-5 mt-2 mb-2 space-y-1" {...props} />
                   ),
-                  ol: ({ node, ...props }) => (
+                  ol: ({ ...props }) => (
                     <ol className="list-decimal pl-5 mt-2 mb-2 space-y-1" {...props} />
                   ),
-                  li: ({ node, ...props }) => <li className="leading-7" {...props} />,
-                  strong: ({ node, ...props }) => <strong className="font-semibold" {...props} />,
-                  em: ({ node, ...props }) => <em className="italic" {...props} />,
-                  a: ({ node, ...props }) => (
+                  li: ({ ...props }) => <li className="leading-7" {...props} />,
+                  strong: ({ ...props }) => <strong className="font-semibold" {...props} />,
+                  em: ({ ...props }) => <em className="italic" {...props} />,
+                  a: ({ ...props }) => (
                     <a
                       className="underline text-blue-400 hover:text-blue-300"
                       target="_blank"
@@ -548,7 +552,7 @@ function MemoPanel({ open, title, content, loading, onClose }: { open: boolean, 
                       {...props}
                     />
                   ),
-                  code: ({ inline, className, children, ...props }: any) =>
+                  code: ({ inline, className, children, ...props }: { inline?: boolean; className?: string; children?: ReactNode } & HTMLAttributes<HTMLElement>) =>
                     inline ? (
                       <code className="bg-zinc-800 rounded px-1.5 py-0.5 text-xs" {...props}>
                         {children}
@@ -560,13 +564,13 @@ function MemoPanel({ open, title, content, loading, onClose }: { open: boolean, 
                         </code>
                       </pre>
                     ),
-                  blockquote: ({ node, ...props }) => (
+                  blockquote: ({ ...props }) => (
                     <blockquote
                       className="border-l-4 border-zinc-600 pl-4 my-3 italic text-zinc-300"
                       {...props}
                     />
                   ),
-                  hr: ({ node, ...props }) => <hr className="my-4 border-zinc-700" {...props} />,
+                  hr: ({ ...props }) => <hr className="my-4 border-zinc-700" {...props} />,
                 }}
               >
                 {content}

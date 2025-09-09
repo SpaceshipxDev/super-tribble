@@ -7,8 +7,8 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
-  const { id } = params;
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const raw = req.cookies.get(AUTH_COOKIE)?.value;
   const user = await parseSessionValue(raw);
   const convo = getConversation(id);
@@ -20,13 +20,14 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   return Response.json({ memo: memo || null });
 }
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
-  const { id } = params;
-  const body = await req.json().catch(() => ({} as any));
-  const { regen } = body || {};
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const jsonRaw = (await req.json().catch(() => (null))) as unknown;
+  const body = (jsonRaw && typeof jsonRaw === 'object') ? (jsonRaw as Record<string, unknown>) : {};
+  const regen = Boolean(body?.regen);
 
-  const raw = req.cookies.get(AUTH_COOKIE)?.value;
-  const user = await parseSessionValue(raw);
+  const cookieRaw = req.cookies.get(AUTH_COOKIE)?.value;
+  const user = await parseSessionValue(cookieRaw);
   const convo = getConversation(id);
   if (!convo) {
     return new Response('未找到会话', { status: 404 });
@@ -74,7 +75,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const content = text || '（暂无内容可摘要）';
     const saved = upsertMemo(id, content);
     return Response.json({ memo: saved });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('[memo] generation error:', err);
     const fallback = '（生成摘要失败）';
     const saved = upsertMemo(id, fallback);

@@ -39,7 +39,7 @@ export default function LoginPage() {
         return;
       }
       router.replace(nextPath);
-    } catch (e) {
+    } catch {
       setError('网络错误');
     } finally {
       setBusy(false);
@@ -94,4 +94,3 @@ export default function LoginPage() {
     </div>
   );
 }
-

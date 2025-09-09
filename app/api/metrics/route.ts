@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { ai, DEFAULT_TEXT_MODEL } from '@/lib/ai';
-import { listConversations, listMessages, listMessagesSinceForUser, type Conversation as DbConversation, type Message as DbMessage } from '@/lib/db';
+import { listConversations, listMessagesSinceForUser, type Conversation as DbConversation, type Message as DbMessage } from '@/lib/db';
 import { AUTH_COOKIE, parseSessionValue } from '@/lib/auth';
 
 export const runtime = 'nodejs';
@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
     const out = await ai.text.generate({ prompt, model: DEFAULT_TEXT_MODEL, temperature: 0.3 });
     const text = (out.text || '').trim();
     return Response.json({ summary: text || '未检测到显著活动。' });
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error('[metrics] summary error:', e);
     return Response.json({ summary: '生成摘要失败。' }, { status: 200 });
   }

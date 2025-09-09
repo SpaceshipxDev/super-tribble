@@ -13,10 +13,11 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json().catch(() => ({} as any));
-  const title = (body?.title as string) || '新对话';
-  const raw = req.cookies.get(AUTH_COOKIE)?.value;
-  const user = await parseSessionValue(raw);
+  const bodyRaw = (await req.json().catch(() => null)) as unknown;
+  const obj = (bodyRaw && typeof bodyRaw === 'object') ? (bodyRaw as Record<string, unknown>) : {};
+  const title = typeof obj.title === 'string' ? obj.title : '新对话';
+  const cookieRaw = req.cookies.get(AUTH_COOKIE)?.value;
+  const user = await parseSessionValue(cookieRaw);
   const convo = createConversation(title, user || 'admin');
   return Response.json(convo);
 }

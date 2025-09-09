@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
   const history = listMessages(conversationId!)
     .filter((m) => m.id !== savedUser.id) // exclude the just-sent user message
     .map((m: DbMessage) => ({
-      role: m.role === 'model' ? 'model' : 'user',
+      role: m.role === 'model' ? ('model' as const) : ('user' as const),
       parts: [{ text: m.content }],
     }));
 
@@ -93,10 +93,11 @@ export async function POST(req: NextRequest) {
     console.log(`[chat] done non-stream: len=${text.length}`);
     if (text.trim()) addMessage(conversationId!, 'model', text);
     return Response.json({ conversationId, text });
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'generation error';
     console.error('[chat] error non-stream:', err);
     return new Response(
-      JSON.stringify({ error: err?.message || 'generation error', conversationId }),
+      JSON.stringify({ error: msg, conversationId }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
   }

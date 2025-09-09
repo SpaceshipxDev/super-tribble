@@ -5,8 +5,8 @@ import { AUTH_COOKIE, parseSessionValue } from '@/lib/auth';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
-  const { id } = params;
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const raw = req.cookies.get(AUTH_COOKIE)?.value;
   const user = await parseSessionValue(raw);
   const convo = getConversation(id);

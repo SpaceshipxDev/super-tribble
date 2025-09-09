@@ -55,8 +55,9 @@ async function openaiChat(opts: {
     const err = await safeReadError(res);
     throw new Error(`openai chat error ${res.status}: ${err}`);
   }
-  const data: any = await res.json();
-  const text = data?.choices?.[0]?.message?.content ?? '';
+  type ChatCompletionResponse = { choices?: Array<{ message?: { content?: string } }> };
+  const data = (await res.json()) as ChatCompletionResponse;
+  const text = data && Array.isArray(data.choices) && data.choices[0]?.message?.content ? data.choices[0].message!.content! : '';
   return String(text || '').trim();
 }
 
@@ -83,10 +84,11 @@ async function openaiText(opts: { model?: string; prompt: string; temperature?: 
       const msg = await safeReadError(res);
       throw new Error(`openai text error ${res.status}: ${msg}`);
     }
-    const data: any = await res.json();
-    const text = data?.choices?.[0]?.text ?? '';
+    type TextCompletionResponse = { choices?: Array<{ text?: string }> };
+    const data = (await res.json()) as TextCompletionResponse;
+    const text = data && Array.isArray(data.choices) && typeof data.choices[0]?.text === 'string' ? data.choices[0]!.text! : '';
     return String(text || '').trim();
-  } catch (e) {
+  } catch {
     // Fallback to chat completions using a single message
     const text = await openaiChat({ model: DEFAULT_MODEL, message: opts.prompt });
     return text;
@@ -104,7 +106,7 @@ async function safeReadError(res: Response): Promise<string> {
 
 export const ai = {
   chats: {
-    create({ model, history, config }: { model?: string; history?: ChatHistoryItem[]; config?: { temperature?: number; systemInstruction?: string; thinkingConfig?: any } }) {
+    create({ model, history, config }: { model?: string; history?: ChatHistoryItem[]; config?: { temperature?: number; systemInstruction?: string; thinkingConfig?: Record<string, unknown> } }) {
       return {
         async sendMessage({ message }: { message: string }): Promise<{ text: string }> {
           const text = await openaiChat({
@@ -126,4 +128,3 @@ export const ai = {
     },
   },
 };
-

@@ -22,29 +22,44 @@ function getAuthSecret(): string {
 }
 
 // Base64url helpers
-function hasBuffer(): boolean {
-  return typeof (globalThis as any).Buffer !== 'undefined';
-}
-
+// Base64 helpers that work without Node Buffer or DOM atob/btoa
 function bytesToBase64(bytes: Uint8Array): string {
-  if (hasBuffer()) {
-    return (globalThis as any).Buffer.from(bytes).toString('base64');
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
+  let output = '';
+  let i = 0;
+  while (i < bytes.length) {
+    const o1 = bytes[i++];
+    const o2 = i < bytes.length ? bytes[i++] : NaN;
+    const o3 = i < bytes.length ? bytes[i++] : NaN;
+    const bits = (o1 << 16) | (((o2 as number) || 0) << 8) | (((o3 as number) || 0) & 0xff);
+    const h1 = (bits >> 18) & 0x3f;
+    const h2 = (bits >> 12) & 0x3f;
+    const h3 = (bits >> 6) & 0x3f;
+    const h4 = bits & 0x3f;
+    output += chars[h1] + chars[h2] + (Number.isNaN(o2) ? '=' : chars[h3]) + (Number.isNaN(o3) ? '=' : chars[h4]);
   }
-  let binary = '';
-  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-  // @ts-ignore
-  return btoa(binary);
+  return output;
 }
 
 function base64ToBytes(b64: string): Uint8Array {
-  if (hasBuffer()) {
-    return new Uint8Array((globalThis as any).Buffer.from(b64, 'base64'));
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
+  const clean = b64.replace(/[^A-Za-z0-9+/=]/g, '');
+  const len = Math.floor(clean.length / 4) * 4;
+  const out: number[] = [];
+  let i = 0;
+  while (i < len) {
+    const e1 = chars.indexOf(clean[i++]);
+    const e2 = chars.indexOf(clean[i++]);
+    const e3 = chars.indexOf(clean[i++]);
+    const e4 = chars.indexOf(clean[i++]);
+    const n1 = (e1 << 2) | (e2 >> 4);
+    const n2 = ((e2 & 15) << 4) | (e3 >> 2);
+    const n3 = ((e3 & 3) << 6) | e4;
+    out.push(n1);
+    if (e3 !== 64 && clean[i - 2] !== '=') out.push(n2);
+    if (e4 !== 64 && clean[i - 1] !== '=') out.push(n3);
   }
-  // @ts-ignore
-  const bin = atob(b64);
-  const out = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-  return out;
+  return new Uint8Array(out);
 }
 
 function base64urlEncode(buf: ArrayBuffer | Uint8Array): string {
@@ -77,7 +92,7 @@ async function hmacSign(data: string, secret: string): Promise<string> {
 async function hmacVerify(data: string, signature: string, secret: string): Promise<boolean> {
   const key = await importKey(secret);
   const sigBytes = base64urlDecode(signature);
-  return await crypto.subtle.verify('HMAC', key, sigBytes, new TextEncoder().encode(data));
+  return await crypto.subtle.verify('HMAC', key, sigBytes.buffer as ArrayBuffer, new TextEncoder().encode(data));
 }
 
 export function isAllowedUser(username: string): username is AllowedUser {

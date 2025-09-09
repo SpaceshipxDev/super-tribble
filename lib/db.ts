@@ -22,20 +22,34 @@ export type Message = {
 const dbDir = path.join(process.cwd(), 'data');
 const dbPath = path.join(dbDir, 'chat.sqlite');
 
-let db: Database.Database | null = null;
+type SqlStatement = {
+  run: (...params: unknown[]) => unknown;
+  get: (...params: unknown[]) => unknown;
+  all: (...params: unknown[]) => unknown[];
+};
+type SqliteDB = {
+  pragma: (pragma: string) => void;
+  exec: (sql: string) => void;
+  prepare: (sql: string) => SqlStatement;
+  transaction: (fn: Function) => (...params: unknown[]) => unknown;
+};
 
-function ensureDb() {
+let db: SqliteDB | null = null;
+
+type TableInfoRow = { name: string };
+
+function ensureDb(): SqliteDB {
   if (db) return db;
   if (!fs.existsSync(dbDir)) {
     fs.mkdirSync(dbDir, { recursive: true });
   }
-  db = new Database(dbPath);
+  db = (new (Database as unknown as { new (p?: string): SqliteDB })(dbPath));
   db.pragma('journal_mode = WAL');
   initSchema(db);
   return db;
 }
 
-function initSchema(d: Database.Database) {
+function initSchema(d: SqliteDB) {
   d.exec(`
     CREATE TABLE IF NOT EXISTS conversations (
       id TEXT PRIMARY KEY,
@@ -62,17 +76,17 @@ function initSchema(d: Database.Database) {
   `);
 
   // Ensure owner column exists on conversations
-  const hasOwnerCol = d
+  const hasOwnerCol = (d
     .prepare("PRAGMA table_info(conversations)")
-    .all()
-    .some((r: any) => r.name === 'owner');
+    .all() as TableInfoRow[])
+    .some((r) => r.name === 'owner');
   if (!hasOwnerCol) {
     try {
       d.exec('ALTER TABLE conversations ADD COLUMN owner TEXT');
       // For legacy rows, default owner to 'admin' to avoid leaking across users.
       d.exec("UPDATE conversations SET owner = COALESCE(owner, 'admin') WHERE owner IS NULL");
       d.exec('CREATE INDEX IF NOT EXISTS idx_conversations_owner_created ON conversations(owner, created_at)');
-    } catch (e) {
+    } catch {
       // ignore if another process added it
     }
   }
@@ -83,10 +97,10 @@ export function createConversation(title?: string, owner?: string): Conversation
   const id = crypto.randomUUID();
   const createdAt = new Date().toISOString();
   const finalTitle = title || '新对话';
-  const hasOwnerCol = d
+  const hasOwnerCol = (d
     .prepare('PRAGMA table_info(conversations)')
-    .all()
-    .some((r: any) => r.name === 'owner');
+    .all() as TableInfoRow[])
+    .some((r) => r.name === 'owner');
   if (hasOwnerCol) {
     d.prepare('INSERT INTO conversations (id, title, created_at, owner) VALUES (?, ?, ?, ?)')
       .run(id, finalTitle, createdAt, owner || 'admin');
@@ -100,35 +114,35 @@ export function createConversation(title?: string, owner?: string): Conversation
 
 export function listConversations(owner?: string): Conversation[] {
   const d = ensureDb();
-  const hasOwnerCol = d
+  const hasOwnerCol = (d
     .prepare('PRAGMA table_info(conversations)')
-    .all()
-    .some((r: any) => r.name === 'owner');
-  let rows: any[] = [];
+    .all() as TableInfoRow[])
+    .some((r) => r.name === 'owner');
+  let rows: Conversation[] = [];
   if (hasOwnerCol) {
     if (owner && owner !== 'admin') {
-      rows = d
+      rows = (d
         .prepare('SELECT id, title, created_at AS createdAt, owner FROM conversations WHERE owner = ? ORDER BY created_at DESC')
-        .all(owner);
+        .all(owner)) as Conversation[];
     } else {
-      rows = d
+      rows = (d
         .prepare('SELECT id, title, created_at AS createdAt, owner FROM conversations ORDER BY created_at DESC')
-        .all();
+        .all()) as Conversation[];
     }
   } else {
-    rows = d
+    rows = (d
       .prepare('SELECT id, title, created_at AS createdAt FROM conversations ORDER BY created_at DESC')
-      .all();
+      .all()) as Conversation[];
   }
   return rows as Conversation[];
 }
 
 export function getConversation(id: string): Conversation | null {
   const d = ensureDb();
-  const hasOwnerCol = d
+  const hasOwnerCol = (d
     .prepare('PRAGMA table_info(conversations)')
-    .all()
-    .some((r: any) => r.name === 'owner');
+    .all() as TableInfoRow[])
+    .some((r) => r.name === 'owner');
   const row = hasOwnerCol
     ? d.prepare('SELECT id, title, created_at AS createdAt, owner FROM conversations WHERE id = ?').get(id)
     : d.prepare('SELECT id, title, created_at AS createdAt FROM conversations WHERE id = ?').get(id);
@@ -147,14 +161,15 @@ export function addMessage(conversationId: string, role: Role, content: string):
 
 export function listMessages(conversationId: string): Message[] {
   const d = ensureDb();
-  const rows = d
+  type MessageRow = Omit<Message, 'content'> & { content: unknown };
+  const rows = (d
     .prepare(
       'SELECT id, conversation_id AS conversationId, role, content, created_at AS createdAt FROM messages WHERE conversation_id = ? ORDER BY created_at ASC'
     )
-    .all(conversationId);
+    .all(conversationId)) as MessageRow[];
   // Normalize possible legacy rows where `content` accidentally stored JSON
   // like { conversationId, text } or even multiple concatenated JSON objects.
-  const normalize = (c: any): string => {
+  const normalize = (c: unknown): string => {
     if (typeof c !== 'string') return String(c ?? '');
     const fromWhole = tryParseTextFromJson(c);
     if (fromWhole) return fromWhole;
@@ -165,17 +180,18 @@ export function listMessages(conversationId: string): Message[] {
     }
     return c;
   };
-  return (rows as Message[]).map((m) => ({ ...m, content: normalize((m as any).content) }));
+  return (rows as MessageRow[]).map((m) => ({ ...m, content: normalize(m.content) }));
 }
 
 export function listMessagesSince(sinceIso: string): Message[] {
   const d = ensureDb();
-  const rows = d
+  type MessageRow = Omit<Message, 'content'> & { content: unknown };
+  const rows = (d
     .prepare(
       'SELECT id, conversation_id AS conversationId, role, content, created_at AS createdAt FROM messages WHERE created_at >= ? ORDER BY created_at ASC'
     )
-    .all(sinceIso);
-  const normalize = (c: any): string => {
+    .all(sinceIso)) as MessageRow[];
+  const normalize = (c: unknown): string => {
     if (typeof c !== 'string') return String(c ?? '');
     const fromWhole = tryParseTextFromJson(c);
     if (fromWhole) return fromWhole;
@@ -186,20 +202,21 @@ export function listMessagesSince(sinceIso: string): Message[] {
     }
     return c;
   };
-  return (rows as Message[]).map((m) => ({ ...m, content: normalize((m as any).content) }));
+  return (rows as MessageRow[]).map((m) => ({ ...m, content: normalize(m.content) }));
 }
 
 export function listMessagesSinceForUser(sinceIso: string, owner?: string): Message[] {
   const d = ensureDb();
-  const hasOwnerCol = d
+  const hasOwnerCol = (d
     .prepare('PRAGMA table_info(conversations)')
-    .all()
-    .some((r: any) => r.name === 'owner');
-  let rows: any[] = [];
+    .all() as TableInfoRow[])
+    .some((r) => r.name === 'owner');
+  type MessageRow = Omit<Message, 'content'> & { content: unknown };
+  let rows: MessageRow[] = [];
   if (!hasOwnerCol || !owner || owner === 'admin') {
     return listMessagesSince(sinceIso);
   }
-  rows = d
+  rows = (d
     .prepare(
       `SELECT m.id, m.conversation_id AS conversationId, m.role, m.content, m.created_at AS createdAt
        FROM messages m
@@ -207,9 +224,9 @@ export function listMessagesSinceForUser(sinceIso: string, owner?: string): Mess
        WHERE m.created_at >= ? AND c.owner = ?
        ORDER BY m.created_at ASC`
     )
-    .all(sinceIso, owner);
+    .all(sinceIso, owner)) as MessageRow[];
 
-  const normalize = (c: any): string => {
+  const normalize = (c: unknown): string => {
     if (typeof c !== 'string') return String(c ?? '');
     const fromWhole = tryParseTextFromJson(c);
     if (fromWhole) return fromWhole;
@@ -220,7 +237,7 @@ export function listMessagesSinceForUser(sinceIso: string, owner?: string): Mess
     }
     return c;
   };
-  return (rows as Message[]).map((m) => ({ ...m, content: normalize((m as any).content) }));
+  return (rows as MessageRow[]).map((m) => ({ ...m, content: normalize(m.content) }));
 }
 
 function tryParseTextFromJson(s: string): string | null {

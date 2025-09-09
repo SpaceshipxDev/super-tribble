@@ -86,12 +86,12 @@ export default function MetricsPage() {
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm]}
                   components={{
-                    h1: ({ node, ...props }) => <h1 className="text-lg font-semibold mt-2 mb-2" {...props} />,
-                    h2: ({ node, ...props }) => <h2 className="text-base font-semibold mt-2 mb-1.5" {...props} />,
-                    p: ({ node, ...props }) => <p className="leading-7 whitespace-pre-wrap break-words break-all mt-2 mb-2 first:mt-0 last:mb-0" {...props} />,
-                    ul: ({ node, ...props }) => <ul className="list-disc pl-5 mt-2 mb-2 space-y-1 break-words break-all" {...props} />,
-                    ol: ({ node, ...props }) => <ol className="list-decimal pl-5 mt-2 mb-2 space-y-1 break-words break-all" {...props} />,
-                    li: ({ node, ...props }) => <li className="leading-7 break-words break-all" {...props} />,
+                    h1: ({ ...props }) => <h1 className="text-lg font-semibold mt-2 mb-2" {...props} />,
+                    h2: ({ ...props }) => <h2 className="text-base font-semibold mt-2 mb-1.5" {...props} />,
+                    p: ({ ...props }) => <p className="leading-7 whitespace-pre-wrap break-words break-all mt-2 mb-2 first:mt-0 last:mb-0" {...props} />,
+                    ul: ({ ...props }) => <ul className="list-disc pl-5 mt-2 mb-2 space-y-1 break-words break-all" {...props} />,
+                    ol: ({ ...props }) => <ol className="list-decimal pl-5 mt-2 mb-2 space-y-1 break-words break-all" {...props} />,
+                    li: ({ ...props }) => <li className="leading-7 break-words break-all" {...props} />,
                   }}
                 >
                   {summary || '暂无摘要。'}
