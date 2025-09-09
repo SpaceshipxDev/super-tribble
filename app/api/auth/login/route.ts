@@ -32,7 +32,13 @@ export async function POST(req: NextRequest) {
   }
 
   const cookieValue = await createSessionValue(username);
-  const res = NextResponse.redirect(new URL(nextPath || '/', req.url));
+  // Build redirect URL using forwarded headers to avoid localhost in proxies
+  const xfHost = req.headers.get('x-forwarded-host');
+  const host = xfHost || req.headers.get('host') || new URL(req.url).host;
+  const xfProto = req.headers.get('x-forwarded-proto');
+  const proto = xfProto || new URL(req.url).protocol.replace(':', '') || 'http';
+  const base = `${proto}://${host}`;
+  const res = NextResponse.redirect(new URL(nextPath || '/', base));
   const forwardedProto = req.headers.get('x-forwarded-proto');
   const isHttps = forwardedProto ? forwardedProto === 'https' : req.nextUrl.protocol === 'https:';
   const secure = process.env.NODE_ENV === 'production' ? isHttps : false;
